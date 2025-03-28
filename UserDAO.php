@@ -32,6 +32,29 @@
             }
         }
 
+        public function getUsers() {
+            $users = [];
+            $connection = $this->getConnection();
+            if (!$connection) return $users;
+
+            $stmt = $connection->prepare("SELECT * FROM USERS;");
+            if (!$stmt) {
+                error_log("Statement preparation failed: " . $connection->error);
+                return $users;
+            }
+
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($row = $result->fetch_assoc()) {
+                $user = new User();
+                $user->load($row);
+                $users[] = $user;
+            }
+            $stmt->close();
+            $connection->close();
+            return $users;
+        }
+
         public function checkForUser($user) {
             $conn = $this->getConnection();
             $stmt = $conn->prepare("SELECT email FROM USERS WHERE email = ?");
@@ -40,19 +63,40 @@
                 throw new Exception("Failed to prepare statement: " . $conn->error);
             }
         
-            $stmt->bind_param("s", $user->getEmail()); // Bind the email value to the placeholder
+            $stmt->bind_param("s", $user->getEmail());
             if (!$stmt->execute()) {
                 throw new Exception("Failed to execute statement: " . $stmt->error);
             }
         
-            $result = $stmt->get_result(); // Get the result set from the query
-            $userExists = $result->num_rows > 0; // Check if any rows were returned (user exists)
+            $result = $stmt->get_result();
+            $userExists = $result->num_rows > 0;
         
             $stmt->close();
             $conn->close();
         
-            return $userExists; // Return true if user exists, false otherwise
+            return $userExists;
         }
+
+        public function authenticate($email, $password) {
+            $conn = $this->getConnection();
+            
+            $stmt = $conn->prepare("SELECT password FROM USERS WHERE email = ?;");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result->fetch_assoc(); // Get the user row
+            $stmt->close();
+            $conn->close();
+        
+            if ($row) {
+                if (password_verify($password, $row['password'])) {
+                    return true;
+                }
+            }
+        
+            return false;
+        }
+        
         
     }
 
